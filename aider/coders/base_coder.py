@@ -719,6 +719,13 @@ class Coder:
         chat_files = set(self.abs_fnames) | repo_abs_read_only_fnames
         other_files = all_abs_files - chat_files
 
+        # print(self.abs_read_only_fnames)
+        # print(self.abs_fnames)
+        # print(repo_abs_read_only_fnames)
+        # print(chat_files)
+        # while True:
+        #     x=1
+
         repo_content = self.repo_map.get_repo_map(
             chat_files,
             other_files,
@@ -726,6 +733,10 @@ class Coder:
             mentioned_idents=mentioned_idents,
             force_refresh=force_refresh,
         )
+
+        # print(repo_content)
+        # while True:
+        #     x=1
 
         # fall back to global repo map if files in chat are disjoint from rest of repo
         if not repo_content:
@@ -748,6 +759,9 @@ class Coder:
     def get_repo_messages(self):
         repo_messages = []
         repo_content = self.get_repo_map()
+        print(repo_content)
+        while True:
+            x=1
         if repo_content:
             repo_messages += [
                 dict(role="user", content=repo_content),

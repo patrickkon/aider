@@ -13,6 +13,11 @@ from pathlib import Path
 
 from diskcache import Cache
 from grep_ast import TreeContext, filename_to_lang
+# from importlib.metadata import distribution
+# grep_ast_path = distribution('grep-ast').locate_file('grep_ast')
+# print(grep_ast_path)
+# while True:
+#     x=1
 from pygments.lexers import guess_lexer_for_filename
 from pygments.token import Token
 from tqdm import tqdm
@@ -162,6 +167,10 @@ class RepoMap:
             repo_content = ""
 
         repo_content += files_listing
+
+        # print(files_listing)
+        # while True:
+        #     x=1
 
         return repo_content
 
@@ -632,6 +641,12 @@ class RepoMap:
             mentioned_idents,
             progress=spin.step,
         )
+        # print(ranked_tags[:10])
+        # while True:
+        #     x=1
+
+        # [Tag(rel_fname='aider/commands.py', fname='/home/patkon/latent/aider/aider/commands.py', line=35, name='Commands', kind='def'), Tag(rel_fname='aider/coders/shell.py', fname='/home/patkon/latent/aider/aider/coders/shell.py', line=26, name='shell_cmd_reminder', kind='def'), Tag(rel_fname='aider/coders/shell.py', fname='/home/patkon/latent/aider/aider/coders/shell.py', line=0, name='shell_cmd_prompt', kind='def'), Tag(rel_fname='aider/coders/shell.py', fname='/home/patkon/latent/aider/aider/coders/shell.py', line=21, name='no_shell_cmd_prompt', kind='def'), Tag(rel_fname='tests/scrape/test_playwright_disable.py', fname='/home/patkon/latent/aider/tests/scrape/test_playwright_disable.py', line=86, name='DummyCoder', kind='def'), Tag(rel_fname='tests/fixtures/languages/hcl/test.tf', fname='/home/patkon/latent/aider/tests/fixtures/languages/hcl/test.tf', line=1, name='aws_region', kind='def'), Tag(rel_fname='tests/fixtures/languages/csharp/test.cs', fname='/home/patkon/latent/aider/tests/fixtures/languages/csharp/test.cs', line=18, name='FormalGreeter', kind='def'), Tag(rel_fname='tests/fixtures/languages/scala/test.scala', fname='/home/patkon/latent/aider/tests/fixtures/languages/scala/test.scala', line=8, name='FormalGreeter', kind='def'), Tag(rel_fname='tests/fixtures/languages/go/test.go', fname='/home/patkon/latent/aider/tests/fixtures/languages/go/test.go', line=19, name='FormalGreeter', kind='def'), Tag(rel_fname='tests/fixtures/languages/d/test.d', fname='/home/patkon/latent/aider/tests/fixtures/languages/d/test.d', line=18, name='this', kind='def')]
+        
 
         other_rel_fnames = sorted(set(self.get_rel_fname(fname) for fname in other_fnames))
         special_fnames = filter_important_files(other_rel_fnames)
@@ -653,7 +668,7 @@ class RepoMap:
 
         self.tree_cache = dict()
 
-        middle = min(int(max_map_tokens // 25), num_tags)
+        middle = min(int(max_map_tokens // 25), num_tags) # this bounds the number of tags in the tree, where the max will always be 40 (i.e., middle = 40)
         while lower_bound <= upper_bound:
             # dump(lower_bound, middle, upper_bound)
 
@@ -664,11 +679,12 @@ class RepoMap:
             spin.step(f"{UPDATING_REPO_MAP_MESSAGE}: {show_tokens} tokens")
 
             tree = self.to_tree(ranked_tags[:middle], chat_rel_fnames)
+            # print(len(ranked_tags[:middle]))
             num_tokens = self.token_count(tree)
 
             pct_err = abs(num_tokens - max_map_tokens) / max_map_tokens
             ok_err = 0.15
-            if (num_tokens <= max_map_tokens and num_tokens > best_tree_tokens) or pct_err < ok_err:
+            if (num_tokens <= max_map_tokens and num_tokens > best_tree_tokens) or pct_err < ok_err: # the idea is to get the most number of tags we can, while staying within the token limit. 
                 best_tree = tree
                 best_tree_tokens = num_tokens
 
@@ -683,25 +699,44 @@ class RepoMap:
             middle = int((lower_bound + upper_bound) // 2)
 
         spin.end()
+
+        # print(best_tree) # this is exactly the repo_map that is returned in get_repo_map, specifically "files_listing"
+        # while True:
+        #     x=1
+
         return best_tree
 
     tree_cache = dict()
 
     def render_tree(self, abs_fname, rel_fname, lois):
-        mtime = self.get_mtime(abs_fname)
+        # print(abs_fname)
+        # print(rel_fname)
+        # # print(lois)
+        # while True:
+        #     x=1
+
+        # Example:
+        # abs_fname: /home/patkon/latent/aider/aider/args_formatter.py
+        # rel_fname: aider/args_formatter.py
+
+        # lois: [8, 81, 175]
+
+        mtime = self.get_mtime(abs_fname) # get last modified time of the file
         key = (rel_fname, tuple(sorted(lois)), mtime)
 
-        if key in self.tree_cache:
+        if key in self.tree_cache: # if the tree is already cached, return it
             return self.tree_cache[key]
 
         if (
-            rel_fname not in self.tree_context_cache
+            rel_fname not in self.tree_context_cache # if the file is not in the cache, or the mtime is different, read the file
             or self.tree_context_cache[rel_fname]["mtime"] != mtime
         ):
+            # read the file
             code = self.io.read_text(abs_fname) or ""
             if not code.endswith("\n"):
                 code += "\n"
 
+            # create a tree context
             context = TreeContext(
                 rel_fname,
                 code,
@@ -715,17 +750,23 @@ class RepoMap:
                 # header_max=30,
                 show_top_of_file_parent_scope=False,
             )
-            self.tree_context_cache[rel_fname] = {"context": context, "mtime": mtime}
+            self.tree_context_cache[rel_fname] = {"context": context, "mtime": mtime} # cache the tree context
 
-        context = self.tree_context_cache[rel_fname]["context"]
+        context = self.tree_context_cache[rel_fname]["context"] # get the tree context
         context.lines_of_interest = set()
         context.add_lines_of_interest(lois)
-        context.add_context()
+        context.add_context() # this is where determine which lines within the rel_fname file to show, depending on the lines of interest (lois) that we care about, essentially we will show the parent scopes of the lois
         res = context.format()
         self.tree_cache[key] = res
         return res
 
     def to_tree(self, tags, chat_rel_fnames):
+        # print(len(tags))
+        # Example tags: a single filename can have multiple tags
+        # Tag(rel_fname='aider/args_formatter.py', fname='/home/patkon/latent/aider/aider/args_formatter.py', line=8, name='start_section', kind='def')
+        # Tag(rel_fname='aider/args_formatter.py', fname='/home/patkon/latent/aider/aider/args_formatter.py', line=81, name='start_section', kind='def')
+        # Tag(rel_fname='aider/args_formatter.py', fname='/home/patkon/latent/aider/aider/args_formatter.py', line=175, name='start_section', kind='def')
+        # Tag(rel_fname='aider/coders/base_prompts.py', fname='/home/patkon/latent/aider/aider/coders/base_prompts.py', line=0, name='CoderPrompts', kind='def')
         if not tags:
             return ""
 
@@ -756,6 +797,11 @@ class RepoMap:
                 cur_fname = this_rel_fname
 
             if lois is not None:
+                # print(tag)
+                # if tag.rel_fname != "aider/args_formatter.py":
+                #     while True:
+                #         x=1
+
                 lois.append(tag.line)
 
         # truncate long lines, in case we get minified js or something else crazy
