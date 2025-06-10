@@ -484,7 +484,8 @@ class Coder:
 
         if map_tokens is None:
             use_repo_map = main_model.use_repo_map
-            map_tokens = 1024
+            # map_tokens = 1024
+            map_tokens = 6000 # increae the map tokens arbitrarily for now to account for the addition of "text" describing code chunks
         else:
             use_repo_map = map_tokens > 0
 
@@ -492,6 +493,7 @@ class Coder:
 
         has_map_prompt = hasattr(self, "gpt_prompts") and self.gpt_prompts.repo_content_prefix
 
+        map_tokens = 6000 # increae the map tokens arbitrarily for now to account for the addition of "text" describing code chunks
         if use_repo_map and self.repo and has_map_prompt:
             self.repo_map = RepoMap(
                 map_tokens,

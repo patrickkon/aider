@@ -70,7 +70,9 @@ class RepoMap:
 
         self.load_tags_cache()
         self.cache_threshold = 0.95
-
+        # print(str(map_tokens) + "dude")
+        # while True:
+        #     x=1
         self.max_map_tokens = map_tokens
         self.map_mul_no_files = map_mul_no_files
         self.max_context_window = max_context_window
@@ -122,6 +124,10 @@ class RepoMap:
             mentioned_idents = set()
 
         max_map_tokens = self.max_map_tokens
+
+        # print(str(self.max_map_tokens) + "dude")
+        # while True:
+        #     x=1
 
         # With no files in the chat, give a bigger view of the entire repo
         padding = 4096
@@ -684,6 +690,9 @@ class RepoMap:
 
             pct_err = abs(num_tokens - max_map_tokens) / max_map_tokens
             ok_err = 0.15
+            # print(max_map_tokens)
+            # while True:
+            #     x=1
             if (num_tokens <= max_map_tokens and num_tokens > best_tree_tokens) or pct_err < ok_err: # the idea is to get the most number of tags we can, while staying within the token limit. 
                 best_tree = tree
                 best_tree_tokens = num_tokens
@@ -714,6 +723,11 @@ class RepoMap:
         # # print(lois)
         # while True:
         #     x=1
+
+        # if rel_fname == "tests/scrape/test_playwright_disable.py":
+        #     print(lois)
+        #     while True:
+        #         x=1
 
         # Example:
         # abs_fname: /home/patkon/latent/aider/aider/args_formatter.py
