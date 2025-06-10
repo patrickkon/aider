@@ -266,6 +266,9 @@ class RepoMap:
 
         # miss!
         data = list(self.get_tags_raw(fname, rel_fname))
+        # print(f"data: {data}")
+        # while True:
+        #     x=1
 
         # Update the cache
         try:
@@ -328,6 +331,11 @@ class RepoMap:
                 kind=kind,
                 line=node.start_point[0],
             )
+            # print(f"result: {result}")
+            # if result.line != 99:
+            #     # print(f"result.line: {result.line}")
+            #     while True:
+            #         x=1
 
             yield result
 
@@ -360,7 +368,7 @@ class RepoMap:
 
     def get_ranked_tags(
         self, chat_fnames, other_fnames, mentioned_fnames, mentioned_idents, progress=None
-    ):
+    ): # this is the graph ranking algorithm mentioned prominently in https://aider.chat/docs/repomap.html
         import networkx as nx
 
         defines = defaultdict(set)
@@ -440,10 +448,15 @@ class RepoMap:
             if current_pers > 0:
                 personalization[rel_fname] = current_pers  # Assign the final calculated value
 
-            tags = list(self.get_tags(fname, rel_fname))
+            tags = list(self.get_tags(fname, rel_fname)) # this is computed per file. Here we obtain all tags of the current file, i.e., classes, def, refs, etc. 
             if tags is None:
                 continue
-
+            
+            """
+            defines: Maps symbol names to the set of files that define them
+            references: Maps symbol names to the list of files that reference them
+            definitions: Maps (filename, symbol_name) pairs to the actual tag objects
+            """
             for tag in tags:
                 if tag.kind == "def":
                     defines[tag.name].add(rel_fname)
@@ -451,7 +464,7 @@ class RepoMap:
                     definitions[key].add(tag)
 
                 elif tag.kind == "ref":
-                    references[tag.name].append(rel_fname)
+                    references[tag.name].append(rel_fname) # this says that this symbol, say foo.test_me() where test_me is the symbol, is found in filea where filea is rel_fname. This is used to count the number of times the symbol is referenced in other files. Where the symbol is defined is provided in the defines dict above. 
 
         ##
         # dump(defines)
@@ -461,8 +474,24 @@ class RepoMap:
         if not references:
             references = dict((k, list(v)) for k, v in defines.items())
 
+        """
+        an "identifier" (or ident) refers to names/symbols in the code that identify various programming elements. 
+        In the RepoMap code, identifiers are tracked in two ways:
+        - As definitions (def): Where the identifier is declared/defined
+        - As references (ref): Where the identifier is used/called
+
+        Specifically, this set operation here is for: This finds all identifiers that are both defined AND referenced somewhere in the codebase, which is important because:
+        - It helps identify which symbols are actually used
+        - It creates connections between files that define symbols and files that use them
+        """
         idents = set(defines.keys()).intersection(set(references.keys()))
 
+        """
+        Creates a directed graph where:
+        Nodes are files
+        Edges represent symbol relationships between files
+        Multiple edges can exist between the same nodes (hence "Multi")
+        """
         G = nx.MultiDiGraph()
 
         # Add a small self-edge for every definition that has no references
@@ -482,30 +511,32 @@ class RepoMap:
 
             mul = 1.0
 
+            """
+            Here we have our ranking algorithm that is a heuristic. 
+            """
             is_snake = ("_" in ident) and any(c.isalpha() for c in ident)
             is_camel = any(c.isupper() for c in ident) and any(c.islower() for c in ident)
-            if ident in mentioned_idents:
+            if ident in mentioned_idents: # mentioned_idents is a special set that contains identifiers that were specifically mentioned in the current chat context, which get higher weight in the ranking algorithm.
                 mul *= 10
-            if (is_snake or is_camel) and len(ident) >= 8:
+            if (is_snake or is_camel) and len(ident) >= 8: #  if it's a "meaningful" identifier (snake_case or camelCase and ≥8 chars)
                 mul *= 10
-            if ident.startswith("_"):
+            if ident.startswith("_"): # if it's a private identifier (starts with _)
                 mul *= 0.1
-            if len(defines[ident]) > 5:
+            if len(defines[ident]) > 5: # if it's defined in more than 5 files, it's less important
                 mul *= 0.1
 
+            # Creates edges between files that reference and define the same symbols
             for referencer, num_refs in Counter(references[ident]).items():
                 for definer in definers:
-                    # dump(referencer, definer, num_refs, mul)
-                    # if referencer == definer:
-                    #    continue
 
                     use_mul = mul
-                    if referencer in chat_rel_fnames:
+                    if referencer in chat_rel_fnames: # if the file that references the symbol is a chat-related file, it gets a higher weight
                         use_mul *= 50
 
                     # scale down so high freq (low value) mentions don't dominate
                     num_refs = math.sqrt(num_refs)
 
+                    # This creates edges FROM the file that references a symbol TO the file that defines it.
                     G.add_edge(referencer, definer, weight=use_mul * num_refs, ident=ident)
 
         if not references:
@@ -517,6 +548,10 @@ class RepoMap:
             pers_args = dict()
 
         try:
+            """
+                Files that define widely-used symbols rank higher (more incoming edges): see weight we have num_refs there. 
+                Files that merely reference symbols don't necessarily rank higher
+            """
             ranked = nx.pagerank(G, weight="weight", **pers_args)
         except ZeroDivisionError:
             # Issue #1536
@@ -526,6 +561,13 @@ class RepoMap:
                 return []
 
         # distribute the rank from each source node, across all of its out edges
+        """
+        This helps identify not just important files, but important symbol definitions within those files. A symbol that is:
+        - Defined in a high-ranked file
+        - Referenced frequently (higher weight edges)
+        - Referenced by other high-ranked files
+        Will end up with a higher rank in ranked_definitions, which determines its position in the final repository map shown to the AI.
+        """
         ranked_definitions = defaultdict(float)
         for src in G.nodes:
             if progress:
@@ -661,6 +703,10 @@ class RepoMap:
         special_fnames = [(fn,) for fn in special_fnames]
 
         ranked_tags = special_fnames + ranked_tags
+
+        # print(f"ranked_tags: {ranked_tags}")
+        # while True:
+        #     x=1
 
         spin.step()
 
